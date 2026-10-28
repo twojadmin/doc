@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <title>Logowanie (demo)</title>
+  <style>
+    body { margin: 0; height: 100vh; display: grid; place-items: center;
+           font-family: Segoe UI, sans-serif; background: #0f172a; color: #e2e8f0; }
+    form { background: #1e293b; padding: 32px; border-radius: 12px; width: 320px; }
+    h1 { margin-top: 0; font-size: 22px; }
+    input, button { width: 100%; box-sizing: border-box; padding: 10px; margin-top: 10px;
+                    font-size: 16px; border-radius: 6px; border: 1px solid #334155; }
+    button { background: #2563eb; color: white; border: 0; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <form id="f">
+    <h1>Zaloguj się</h1>
+    <input id="user" placeholder="Nazwa użytkownika" required autofocus>
+    <input type="password" placeholder="Hasło" required>
+    <button>Zaloguj</button>
+  </form>
+  <script>
+    document.getElementById('f').addEventListener('submit', e => {
+      e.preventDefault();
+      // Tu normalnie jest prawdziwe logowanie (fetch do serwera).
+      // Po sukcesie strona informuje aplikację:
+      const user = document.getElementById('user').value;
+      if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage({ type: 'login', user });
+      }
+    });
+  </script>
+</body>
+</html>
