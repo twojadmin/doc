@@ -1,4 +1,4 @@
 # doc
 Dokumentacja
 
-- [Monitoring CVE](cve-monitor/README.md) – nowe podatności i rozwiązania (Java, Apache, Windows, Oracle, MariaDB, PHP)
+- [Przegląd bezpieczeństwa](cve-monitor/README.md) – komunikaty CERT, artykuły serwisów (tytuł i link) i wyszukiwarki CVE
