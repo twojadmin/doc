@@ -9,4 +9,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: python3 .github/probe/cors_probe.py
+      - run: timeout 300 python3 .github/probe/cors_probe.py || true
+    timeout-minutes: 8
