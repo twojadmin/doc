@@ -365,11 +365,10 @@ footer ul{padding-left:18px;margin:6px 0}
     { grp: "Europa", name: "BSI CERT-Bund – WID", tag: "DE", home: "https://wid.cert-bund.de/portal/wid/kurzinformationen", d: "Komunikaty niemieckiego BSI." },
     { grp: "Europa", name: "CERT Polska – CVE", tag: "PL", home: "https://cert.pl/tag/cve/", d: "Podatności publikowane przez CERT Polska (CNA)." },
     { grp: "Świat", name: "NVD", tag: "NIST · US", home: "https://nvd.nist.gov/vuln/search", id: "https://nvd.nist.gov/vuln/detail/{id}", d: "Narodowa baza podatności USA (CVSS, CPE)." },
-    { grp: "Świat", name: "CVE.org", tag: "CVE Program", home: "https://www.cve.org/", id: "https://www.cve.org/CVERecord?id={id}", d: "Oficjalny rejestr identyfikatorów CVE." },
+    { grp: "Świat", name: "CVE.org", tag: "CVE Program", home: "https://www.cve.org/", id: "https://www.cve.org/CVERecord?id={id}", q: "https://www.cve.org/CVERecord/SearchResults?query={q}", d: "Oficjalny rejestr identyfikatorów CVE." },
     { grp: "Świat", name: "CISA KEV", tag: "US", home: "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
-      id: "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?search_api_fulltext={id}",
-      q: "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?search_api_fulltext={q}", d: "Katalog podatności aktywnie wykorzystywanych." },
-    { grp: "Świat", name: "OSV.dev", tag: "open source", home: "https://osv.dev/", id: "https://osv.dev/list?q={id}", q: "https://osv.dev/list?q={q}", d: "Podatności w bibliotekach i pakietach open source." },
+      d: "Katalog podatności aktywnie wykorzystywanych (wyszukiwarka na stronie katalogu)." },
+    { grp: "Świat", name: "OSV.dev", tag: "open source", home: "https://osv.dev/", id: "https://osv.dev/list?q={id}", d: "Podatności w bibliotekach i pakietach open source (wyszukiwanie po CVE lub nazwie pakietu na stronie)." },
     { grp: "Świat", name: "GitHub Advisory Database", tag: "GitHub", home: "https://github.com/advisories", id: "https://github.com/advisories?query={id}",
       q: "https://github.com/advisories?query={q}", d: "Biuletyny dla pakietów (npm, Maven, PyPI, Composer…)." },
   ];
@@ -378,7 +377,7 @@ footer ul{padding-left:18px;margin:6px 0}
     const id = (raw.match(/CVE-\d{4}-\d{4,}/i) || [""])[0].toUpperCase();
     const q = id ? "" : raw;
     $("cvehint").textContent = id ? `Numer ${id} – linki prowadzą bezpośrednio do tej podatności.`
-      : q ? `Wyszukiwanie „${q}” – w wyszukiwarkach bez wyszukiwania przez adres link prowadzi na stronę główną.`
+      : q ? `Wyszukiwanie „${q}” – bezpośrednio otwierają wyniki: EUVD, Vulnerability-Lookup, OpenCVE, CVE.org i GitHub. Pozostałe prowadzą na swoją stronę wyszukiwania.`
       : "Wpisz numer CVE lub nazwę produktu – linki poniżej otworzą wyniki w wybranej wyszukiwarce.";
     let out = "", grp = "";
     ENGINES.forEach((e) => {
@@ -386,7 +385,7 @@ footer ul{padding-left:18px;margin:6px 0}
       let url = e.home, direct = false;
       if (id && e.id) { url = e.id.replace("{id}", encodeURIComponent(id)); direct = true; }
       else if (q && e.q) { url = e.q.replace("{q}", encodeURIComponent(q)); direct = true; }
-      out += `<div class="eng"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(e.name)}</a><span class="tag">${esc(e.tag)}</span>${(id || q) && !direct ? '<span class="home"> · strona główna</span>' : ""}<div class="d">${esc(e.d)}</div></div>`;
+      out += `<div class="eng"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(e.name)}</a><span class="tag">${esc(e.tag)}</span>${(id || q) && !direct ? '<span class="home"> · otwiera stronę główną (wpisz tam ręcznie)</span>' : ""}<div class="d">${esc(e.d)}</div></div>`;
     });
     $("engines").innerHTML = out;
   }
