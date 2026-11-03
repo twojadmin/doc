@@ -69,6 +69,8 @@ button{cursor:pointer} button:hover{border-color:var(--accent)}
 footer{color:var(--muted);font-size:12.5px;margin:20px 0 8px}
 footer ul{padding-left:18px;margin:6px 0}
 .err{color:var(--err)}
+.chip.load small{animation:pulse 1s infinite} @keyframes pulse{50%{opacity:.3}}
+.via{font-size:11px;color:var(--muted)}
 [hidden]{display:none!important}
 @media (max-width:1000px){
   .tabs{display:flex}
@@ -134,7 +136,8 @@ footer ul{padding-left:18px;margin:6px 0}
   </main>
 
   <footer>
-    <div><b>Zasady:</b> strona pokazuje wyłącznie <b>tytuł i link</b> z publicznych kanałów RSS (oraz nazwę źródła i datę). Treść artykułów i komunikatów pozostaje u źródła – kliknięcie otwiera oryginał. Wyszukiwarki CVE są tylko linkami; strona niczego z nich nie pobiera.</div>
+    <div><b>Zasady:</b> strona pokazuje wyłącznie <b>tytuł i link</b> z publicznych kanałów RSS (oraz nazwę źródła i datę). Treść artykułów i komunikatów pozostaje u źródła – kliknięcie otwiera oryginał. Wyszukiwarki CVE są tylko linkami.</div>
+    <div>Kanały są pobierane bezpośrednio przez Twoją przeglądarkę. Serwery, które na to nie pozwalają (brak nagłówka CORS), są odpytywane przez publicznego pośrednika (<span id="proxyname">allorigins.win / corsproxy.io</span>) – pośrednik widzi adres pobieranego kanału i Twój adres IP. Wyniki są przechowywane w pamięci przeglądarki przez 20 minut.</div>
     <ul id="srcs"></ul>
     <div id="errs" class="err"></div>
   </footer>
@@ -143,12 +146,39 @@ footer ul{padding-left:18px;margin:6px 0}
 <script>
 (() => {
   "use strict";
-  const PAGE = 40, REFRESH_MIN = 15;
+  const PAGE = 40, MAX_AGE_DAYS = 14, CACHE_MIN = 20, REFRESH_MIN = 30, TIMEOUT_MS = 15000;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const safe = (u) => /^https?:\/\//i.test(u || "") ? u : "#";
   const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
-  const readSet = (k) => { try { return new Set(JSON.parse(store.get(k) || "[]")); } catch { return new Set(); } };
+  const readJSON = (k, dflt) => { try { const v = JSON.parse(store.get(k)); return v ?? dflt; } catch { return dflt; } };
+
+  // ---- źródła (tylko tytuł, link i data z kanałów RSS/Atom)
+  const SOURCES = [
+    { id: "certpl", col: "cert", name: "CERT Polska", lang: "pl", home: "https://cert.pl/", feed: "https://cert.pl/rss.xml" },
+    { id: "certeu", col: "cert", name: "CERT-EU", lang: "en", home: "https://cert.europa.eu/publications/security-advisories", feed: "https://cert.europa.eu/publications/security-advisories-rss", note: "CC BY 4.0" },
+    { id: "certfr", col: "cert", name: "CERT-FR (avis)", lang: "fr", home: "https://www.cert.ssi.gouv.fr/avis/", feed: "https://www.cert.ssi.gouv.fr/avis/feed/", note: "Licence Ouverte 2.0" },
+    { id: "certfr-alert", col: "cert", name: "CERT-FR (alerty)", lang: "fr", home: "https://www.cert.ssi.gouv.fr/alerte/", feed: "https://www.cert.ssi.gouv.fr/alerte/feed/", note: "Licence Ouverte 2.0" },
+    { id: "bsi", col: "cert", name: "BSI CERT-Bund", lang: "de", home: "https://wid.cert-bund.de/portal/wid/kurzinformationen", feed: "https://wid.cert-bund.de/content/public/securityAdvisory/rss",
+      only: /\[(hoch|kritisch)\]/i, max: 10, note: "tylko ważność wysoka/krytyczna, maks. 10" },
+    { id: "ncscnl", col: "cert", name: "NCSC-NL", lang: "nl", home: "https://advisories.ncsc.nl/", feed: "https://advisories.ncsc.nl/rss/advisories" },
+    { id: "sekurak", col: "news", name: "Sekurak", lang: "pl", home: "https://sekurak.pl/", feed: "https://sekurak.pl/feed/" },
+    { id: "niebezpiecznik", col: "news", name: "Niebezpiecznik", lang: "pl", home: "https://niebezpiecznik.pl/", feed: "https://niebezpiecznik.pl/feed/" },
+    { id: "zts", col: "news", name: "Zaufana Trzecia Strona", lang: "pl", home: "https://zaufanatrzeciastrona.pl/", feed: "https://zaufanatrzeciastrona.pl/feed/" },
+    { id: "cyberdefence24", col: "news", name: "CyberDefence24", lang: "pl", home: "https://cyberdefence24.pl/", feed: "https://cyberdefence24.pl/rss" },
+    { id: "bleeping", col: "news", name: "BleepingComputer", lang: "en", home: "https://www.bleepingcomputer.com/", feed: "https://www.bleepingcomputer.com/feed/" },
+    { id: "thn", col: "news", name: "The Hacker News", lang: "en", home: "https://thehackernews.com/", feed: "https://feeds.feedburner.com/TheHackersNews" },
+    { id: "securityweek", col: "news", name: "SecurityWeek", lang: "en", home: "https://www.securityweek.com/", feed: "https://www.securityweek.com/feed/" },
+    { id: "therecord", col: "news", name: "The Record", lang: "en", home: "https://therecord.media/", feed: "https://therecord.media/feed" },
+    { id: "helpnet", col: "news", name: "Help Net Security", lang: "en", home: "https://www.helpnetsecurity.com/", feed: "https://www.helpnetsecurity.com/feed/" },
+    { id: "krebs", col: "news", name: "Krebs on Security", lang: "en", home: "https://krebsonsecurity.com/", feed: "https://krebsonsecurity.com/feed/" },
+    { id: "sans", col: "news", name: "SANS ISC", lang: "en", home: "https://isc.sans.edu/", feed: "https://isc.sans.edu/rssfeed_full.xml", note: "CC BY-NC-SA 4.0" },
+  ];
+  // Pośrednicy CORS – używani tylko, gdy serwer kanału nie pozwala na pobranie bezpośrednie
+  const PROXIES = [
+    { id: "allorigins", url: (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u) },
+    { id: "corsproxy", url: (u) => "https://corsproxy.io/?url=" + encodeURIComponent(u) },
+  ];
 
   // ---- motyw
   const t0 = store.get("sec-theme"); if (t0) document.documentElement.dataset.theme = t0;
@@ -159,13 +189,14 @@ footer ul{padding-left:18px;margin:6px 0}
   };
 
   // ---- stan
-  let data = null, lastGen = null;
   const lastVisit = Number(store.get("sec-last-visit") || 0);
-  const off = { cert: readSet("sec-off-cert"), news: readSet("sec-off-news") };
+  const off = { cert: new Set(readJSON("sec-off-cert", [])), news: new Set(readJSON("sec-off-news", [])) };
   const shown = { cert: PAGE, news: PAGE };
   const state = { q: "", age: Number(store.get("sec-age") || 3), onlyNew: false };
   if (![1, 3, 7, 14].includes(state.age)) state.age = 3;
   $("age").value = String(state.age);
+  const feeds = {};   // id -> { items, status: "load"|"ok"|"err", via, at }
+  const route = readJSON("sec-route", {});   // id -> "direct" | id pośrednika, który ostatnio zadziałał
 
   const rel = (iso) => {
     const d = new Date(iso), s = (Date.now() - d) / 1000;
@@ -176,49 +207,139 @@ footer ul{padding-left:18px;margin:6px 0}
     if (s < 7 * 86400) return `${Math.round(s / 86400)} dni temu`;
     return d.toLocaleDateString("pl-PL");
   };
-  const srcOf = (id) => (data.sources || []).find((s) => s.id === id) || { name: id, col: "news", lang: "" };
 
+  // ---- pobieranie i parsowanie kanałów
+  async function fetchText(url) {
+    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+    try {
+      const r = await fetch(url, { signal: ctl.signal, credentials: "omit", referrerPolicy: "no-referrer" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const t = await r.text();
+      if (!/<(rss|feed|rdf:RDF)[\s>]/i.test(t)) throw new Error("to nie jest kanał RSS");
+      return t;
+    } finally { clearTimeout(tm); }
+  }
+  async function getFeed(src) {
+    const order = ["direct", ...PROXIES.map((p) => p.id)];
+    if (route[src.id]) order.sort((a, b) => (b === route[src.id]) - (a === route[src.id]));
+    let lastErr;
+    for (const how of order) {
+      try {
+        const url = how === "direct" ? src.feed : PROXIES.find((p) => p.id === how).url(src.feed);
+        const text = await fetchText(url);
+        if (route[src.id] !== how) { route[src.id] = how; store.set("sec-route", JSON.stringify(route)); }
+        return { text, via: how };
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error("brak odpowiedzi");
+  }
+  const txt = (el, sel) => { const n = el.getElementsByTagName(sel)[0]; return n ? n.textContent.trim() : ""; };
+  const plain = (s) => { const d = document.createElement("div"); d.innerHTML = s; return (d.textContent || "").replace(/\s+/g, " ").trim(); };
+  function parse(src, text) {
+    const doc = new DOMParser().parseFromString(text, "text/xml");
+    if (doc.getElementsByTagName("parsererror").length) throw new Error("błąd XML");
+    const lim = Date.now() - MAX_AGE_DAYS * 86400000;
+    const out = [];
+    const nodes = [...doc.getElementsByTagName("item"), ...doc.getElementsByTagName("entry")];
+    for (const el of nodes) {
+      const title = plain(txt(el, "title")).slice(0, 300);
+      let link = "";
+      for (const l of el.getElementsByTagName("link")) {
+        const href = l.getAttribute("href"), relA = l.getAttribute("rel");
+        if (href && (!relA || relA === "alternate")) { link = href; break; }
+        if (!href && l.textContent.trim()) { link = l.textContent.trim(); break; }
+      }
+      const dateStr = txt(el, "pubDate") || txt(el, "published") || txt(el, "updated") || txt(el, "dc:date") || txt(el, "date");
+      const d = Date.parse(dateStr);
+      if (!title || !/^https?:\/\//i.test(link) || isNaN(d) || d < lim) continue;
+      if (src.only && !src.only.test(title)) continue;
+      out.push({ s: src.id, t: title, u: link, d });
+      if (out.length >= (src.max || 30)) break;
+    }
+    return out;
+  }
+  async function loadSource(src, force) {
+    const cached = readJSON("sec-feed-" + src.id, null);
+    if (cached && cached.items) feeds[src.id] = { items: cached.items, status: "ok", via: cached.via, at: cached.at };
+    if (!force && cached && Date.now() - cached.at < CACHE_MIN * 60000) { scheduleRender(); return; }
+    feeds[src.id] = { ...(feeds[src.id] || { items: [] }), status: "load" };
+    scheduleRender();
+    try {
+      const { text, via } = await getFeed(src);
+      const items = parse(src, text);
+      feeds[src.id] = { items, status: "ok", via, at: Date.now() };
+      store.set("sec-feed-" + src.id, JSON.stringify({ items, via, at: Date.now() }));
+    } catch (e) {
+      feeds[src.id] = { ...(feeds[src.id] || { items: [] }), status: "err", err: e.message || String(e) };
+    }
+    scheduleRender();
+  }
+  async function loadAll(force) {
+    $("reload").disabled = true;
+    await Promise.all(SOURCES.map((s) => loadSource(s, force)));
+    $("reload").disabled = false;
+    renderMeta(); scheduleRender();
+  }
+
+  // ---- widok
+  const srcOf = (id) => SOURCES.find((s) => s.id === id);
+  const allItems = () => SOURCES.flatMap((s) => (feeds[s.id] && feeds[s.id].items) || []).sort((a, b) => b.d - a.d);
   function filtered(col, ignoreOff) {
     const lim = Date.now() - state.age * 86400000;
     const words = state.q.toLowerCase().split(/\s+/).filter(Boolean);
-    return data.items.filter((it) => {
+    return allItems().filter((it) => {
       if (srcOf(it.s).col !== col) return false;
       if (!ignoreOff && off[col].has(it.s)) return false;
-      const t = Date.parse(it.d);
-      if (t < lim) return false;
-      if (state.onlyNew && lastVisit && t <= lastVisit) return false;
+      if (it.d < lim) return false;
+      if (state.onlyNew && lastVisit && it.d <= lastVisit) return false;
       return words.every((w) => it.t.toLowerCase().includes(w));
     });
   }
-
   function renderCol(col) {
     const base = filtered(col, true);
     const chips = $("chips-" + col); chips.innerHTML = "";
-    (data.sources || []).filter((s) => s.col === col).forEach((s) => {
-      const n = base.filter((i) => i.s === s.id).length;
-      const b = document.createElement("button");
+    SOURCES.filter((s) => s.col === col).forEach((s) => {
+      const f = feeds[s.id] || { status: "load" };
       const hidden = off[col].has(s.id);
-      b.className = "chip" + (hidden ? "" : " on");
+      const b = document.createElement("button");
+      b.className = "chip" + (hidden ? "" : " on") + (f.status === "load" ? " load" : "");
       b.setAttribute("aria-pressed", String(!hidden));
-      b.title = s.ok ? (hidden ? "Pokaż: " : "Ukryj: ") + s.name : s.name + " – kanał niedostępny przy ostatniej aktualizacji";
-      b.innerHTML = `${esc(s.name)}<small>${s.ok ? n : "⚠"}</small>`;
+      b.title = f.status === "err" ? `${s.name}: nie udało się pobrać (${f.err})` : (hidden ? "Pokaż: " : "Ukryj: ") + s.name;
+      const n = base.filter((i) => i.s === s.id).length;
+      b.innerHTML = `${esc(s.name)}<small>${f.status === "load" && !f.items?.length ? "…" : f.status === "err" && !f.items?.length ? "⚠" : n}</small>`;
       b.onclick = () => { hidden ? off[col].delete(s.id) : off[col].add(s.id); store.set("sec-off-" + col, JSON.stringify([...off[col]])); shown[col] = PAGE; renderCol(col); };
       chips.appendChild(b);
     });
     const list = filtered(col, false);
     $("n-" + col).textContent = String(list.length);
+    const loading = SOURCES.some((s) => s.col === col && (!feeds[s.id] || feeds[s.id].status === "load"));
     $("list-" + col).innerHTML = list.length ? list.slice(0, shown[col]).map((it) => {
-      const s = srcOf(it.s), isNew = lastVisit && Date.parse(it.d) > lastVisit;
+      const s = srcOf(it.s), isNew = lastVisit && it.d > lastVisit;
       return `<li><a href="${esc(safe(it.u))}" target="_blank" rel="noopener noreferrer">${esc(it.t)}</a>
-        <div class="meta">${isNew ? '<span class="newdot" title="Nowe od ostatniej wizyty">●</span>' : ""}<span class="src">${esc(s.name)}</span>${s.lang && s.lang !== "pl" ? `<span class="lang">${esc(s.lang.toUpperCase())}</span>` : ""}<span>${esc(rel(it.d))}</span></div></li>`;
-    }).join("") : `<li class="empty">Brak pozycji dla wybranych filtrów.</li>`;
+        <div class="meta">${isNew ? '<span class="newdot" title="Nowe od ostatniej wizyty">●</span>' : ""}<span class="src">${esc(s.name)}</span>${s.lang !== "pl" ? `<span class="lang">${esc(s.lang.toUpperCase())}</span>` : ""}<span>${esc(rel(it.d))}</span></div></li>`;
+    }).join("") : `<li class="empty">${loading ? "Pobieranie kanałów…" : "Brak pozycji dla wybranych filtrów."}</li>`;
     $("more-" + col).hidden = list.length <= shown[col];
   }
+  let raf = 0;
+  function scheduleRender() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; renderCol("cert"); renderCol("news"); }); }
 
-  // ---- wyszukiwarki CVE (tylko linki, nic nie jest pobierane)
+  function renderMeta() {
+    const ok = SOURCES.filter((s) => feeds[s.id] && feeds[s.id].status === "ok");
+    const at = Math.max(0, ...ok.map((s) => feeds[s.id].at || 0));
+    $("gen").innerHTML = at ? `Dane z: <b>${esc(new Date(at).toLocaleString("pl-PL", { dateStyle: "medium", timeStyle: "short" }))}</b> · ${allItems().length} pozycji z ${ok.length}/${SOURCES.length} źródeł` : "Pobieranie kanałów…";
+    $("srcs").innerHTML = SOURCES.map((s) => {
+      const f = feeds[s.id] || {};
+      const via = f.via && f.via !== "direct" ? ` <span class="via">(przez pośrednika ${esc(f.via)})</span>` : "";
+      return `<li><a href="${esc(s.home)}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a>${s.note ? ` – ${esc(s.note)}` : ""}${via}${f.status === "err" ? " · ⚠ " + esc(f.err) : ""}</li>`;
+    }).join("");
+    const errs = SOURCES.filter((s) => feeds[s.id] && feeds[s.id].status === "err" && !(feeds[s.id].items || []).length);
+    $("errs").textContent = errs.length ? "Nie udało się pobrać: " + errs.map((s) => s.name).join(", ") : "";
+  }
+
+  // ---- wyszukiwarki CVE (tylko linki)
   const ENGINES = [
     { grp: "Europa", name: "EUVD – European Vulnerability Database", tag: "ENISA · UE", home: "https://euvd.enisa.europa.eu/",
-      d: "Europejska baza podatności prowadzona przez ENISA (identyfikatory EUVD powiązane z CVE)." },
+      id: "https://euvd.enisa.europa.eu/vulnerability/{id}", d: "Europejska baza podatności prowadzona przez ENISA." },
     { grp: "Europa", name: "Vulnerability-Lookup", tag: "CIRCL · LU", home: "https://vulnerability.circl.lu/",
       id: "https://vulnerability.circl.lu/vuln/{id}", d: "Luksemburski CERT; łączy wiele źródeł (CVE, NVD, biuletyny producentów, GitHub)." },
     { grp: "Europa", name: "OpenCVE", tag: "FR", home: "https://app.opencve.io/cve/", id: "https://app.opencve.io/cve/{id}",
@@ -253,37 +374,13 @@ footer ul{padding-left:18px;margin:6px 0}
     $("engines").innerHTML = out;
   }
 
-  const render = () => { if (data) { renderCol("cert"); renderCol("news"); } };
-
-  function renderMeta() {
-    $("gen").innerHTML = `Aktualizacja: <b>${esc(new Date(data.generated).toLocaleString("pl-PL", { dateStyle: "medium", timeStyle: "short" }))}</b> · ${data.items.length} pozycji z ${data.sources.length} źródeł`;
-    $("srcs").innerHTML = data.sources.map((s) => `<li><a href="${esc(safe(s.home))}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a>${s.note ? ` – ${esc(s.note)}` : ""}${s.ok ? "" : " · ⚠ kanał niedostępny"}</li>`).join("");
-    $("errs").textContent = (data.errors || []).length ? "Ostrzeżenia: " + data.errors.join("; ") : "";
-  }
-
-  async function load(manual) {
-    try {
-      let d;
-      if (window.NEWS_DATA) { if (data) return; d = window.NEWS_DATA; }
-      else {
-        const r = await fetch("news.json?t=" + Date.now(), { cache: "no-store" });
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        d = await r.json();
-      }
-      if (!manual && d.generated === lastGen) return;
-      data = d; lastGen = d.generated; renderMeta(); render();
-    } catch (e) {
-      if (!data) $("gen").textContent = `Nie udało się wczytać danych (${e.message}).`;
-    }
-  }
-
   // ---- zdarzenia
   let tm;
-  $("q").addEventListener("input", (e) => { clearTimeout(tm); tm = setTimeout(() => { state.q = e.target.value.trim(); shown.cert = shown.news = PAGE; render(); }, 150); });
-  $("age").onchange = (e) => { state.age = Number(e.target.value); store.set("sec-age", e.target.value); render(); };
-  $("onlyNew").onchange = (e) => { state.onlyNew = e.target.checked; render(); };
+  $("q").addEventListener("input", (e) => { clearTimeout(tm); tm = setTimeout(() => { state.q = e.target.value.trim(); shown.cert = shown.news = PAGE; scheduleRender(); }, 150); });
+  $("age").onchange = (e) => { state.age = Number(e.target.value); store.set("sec-age", e.target.value); scheduleRender(); };
+  $("onlyNew").onchange = (e) => { state.onlyNew = e.target.checked; scheduleRender(); };
   ["cert", "news"].forEach((c) => { $("more-" + c).onclick = () => { shown[c] += PAGE; renderCol(c); }; });
-  $("reload").onclick = () => load(true);
+  $("reload").onclick = () => loadAll(true);
   $("cveq").addEventListener("input", renderEngines);
   document.querySelectorAll(".tab").forEach((b) => b.onclick = () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("on", x === b));
@@ -292,8 +389,8 @@ footer ul{padding-left:18px;margin:6px 0}
   addEventListener("pagehide", () => store.set("sec-last-visit", String(Date.now())));
 
   renderEngines();
-  load(true);
-  setInterval(() => load(false), REFRESH_MIN * 60000);
+  loadAll(false);
+  setInterval(() => loadAll(false), REFRESH_MIN * 60000);
 })();
 </script>
 </body>
