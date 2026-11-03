@@ -14,8 +14,11 @@ Strona zbiorcza „co się teraz dzieje w bezpieczeństwie”, w trzech kolumnac
 ### Jak to działa
 - Strona to jeden plik `index.html` – bez serwera i bez GitHub Actions. Kanały RSS pobiera **przeglądarka**
   (JavaScript) przy otwarciu strony; wyniki są trzymane w pamięci przeglądarki 20 minut, a strona odświeża się co 30 minut.
-- Kanały, których serwery nie pozwalają na pobranie z innej domeny (brak nagłówka CORS), są pobierane przez
-  publicznego pośrednika (allorigins.win, zapasowo corsproxy.io). Pośrednik widzi adres kanału i adres IP odwiedzającego.
+- Tylko część serwisów pozwala przeglądarce pobrać kanał bezpośrednio (nagłówek CORS; w teście 2 z 17:
+  CyberDefence24 i The Record). Pozostałe idą przez pośrednika:
+  - **zalecane:** własny pośrednik na darmowym Cloudflare Workers – kod i instrukcja w `cors-proxy-worker.js`
+    (przepuszcza tylko te 17 kanałów); jego adres wpisuje się w stałej `OWN_PROXY` w `index.html`,
+  - zapasowo: publiczny allorigins.win – bywa zawodny i widzi adres IP odwiedzającego.
 - Z kanałów brane są **tylko tytuł, link i data** – bez treści, opisów i obrazków. Kliknięcie otwiera oryginał.
 - Listę źródeł zmienia się w tablicy `SOURCES` w `index.html`.
 

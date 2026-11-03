@@ -137,7 +137,7 @@ footer ul{padding-left:18px;margin:6px 0}
 
   <footer>
     <div><b>Zasady:</b> strona pokazuje wyłącznie <b>tytuł i link</b> z publicznych kanałów RSS (oraz nazwę źródła i datę). Treść artykułów i komunikatów pozostaje u źródła – kliknięcie otwiera oryginał. Wyszukiwarki CVE są tylko linkami.</div>
-    <div>Kanały są pobierane bezpośrednio przez Twoją przeglądarkę. Serwery, które na to nie pozwalają (brak nagłówka CORS), są odpytywane przez publicznego pośrednika (<span id="proxyname">allorigins.win / corsproxy.io</span>) – pośrednik widzi adres pobieranego kanału i Twój adres IP. Wyniki są przechowywane w pamięci przeglądarki przez 20 minut.</div>
+    <div>Kanały są pobierane bezpośrednio przez Twoją przeglądarkę. Serwery, które na to nie pozwalają (brak nagłówka CORS), są odpytywane przez publicznego pośrednika (<span id="proxyname">allorigins.win lub własnego, jeśli jest ustawiony</span>) – pośrednik widzi adres pobieranego kanału i Twój adres IP. Wyniki są przechowywane w pamięci przeglądarki przez 20 minut.</div>
     <ul id="srcs"></ul>
     <div id="errs" class="err"></div>
   </footer>
@@ -174,10 +174,13 @@ footer ul{padding-left:18px;margin:6px 0}
     { id: "krebs", col: "news", name: "Krebs on Security", lang: "en", home: "https://krebsonsecurity.com/", feed: "https://krebsonsecurity.com/feed/" },
     { id: "sans", col: "news", name: "SANS ISC", lang: "en", home: "https://isc.sans.edu/", feed: "https://isc.sans.edu/rssfeed_full.xml", note: "CC BY-NC-SA 4.0" },
   ];
-  // Pośrednicy CORS – używani tylko, gdy serwer kanału nie pozwala na pobranie bezpośrednie
+  // Pośrednik CORS – używany tylko, gdy serwer kanału nie pozwala przeglądarce na pobranie bezpośrednie.
+  // Najpewniej działa własny pośrednik (plik cors-proxy-worker.js, darmowe Cloudflare Workers):
+  // po jego uruchomieniu wpisz tu jego adres, np. "https://security-news.twoja-nazwa.workers.dev".
+  const OWN_PROXY = "";
   const PROXIES = [
+    ...(OWN_PROXY ? [{ id: "własny", url: (u) => OWN_PROXY.replace(/\/$/, "") + "/?url=" + encodeURIComponent(u) }] : []),
     { id: "allorigins", url: (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u) },
-    { id: "corsproxy", url: (u) => "https://corsproxy.io/?url=" + encodeURIComponent(u) },
   ];
 
   // ---- motyw
