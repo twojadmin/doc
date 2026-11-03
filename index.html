@@ -71,6 +71,14 @@ footer ul{padding-left:18px;margin:6px 0}
 .err{color:var(--err)}
 .chip.load small{animation:pulse 1s infinite} @keyframes pulse{50%{opacity:.3}}
 .via{font-size:11px;color:var(--muted)}
+/* Tryb „tylko wyszukiwarki CVE” (NEWS_ENABLED = false) */
+.cve-only .news-ui{display:none!important}
+.cve-only .grid{grid-template-columns:minmax(0,1fr);max-width:760px;margin:0 auto}
+.cve-only .grid .col.cve{display:block}
+.cve-only #col-cve>h2{display:none}
+.cve-only .cvebox{padding-top:14px}
+.cve-only header{max-width:760px;margin-left:auto;margin-right:auto}
+.cve-only footer{max-width:760px;margin-left:auto;margin-right:auto}
 [hidden]{display:none!important}
 @media (max-width:1000px){
   .tabs{display:flex}
@@ -86,14 +94,15 @@ footer ul{padding-left:18px;margin:6px 0}
     <div>
       <h1>Przegląd bezpieczeństwa</h1>
       <div class="sub" id="gen">Ładowanie…</div>
+      <div class="sub cve-ui" id="cvesub" hidden>Wpisz numer CVE lub nazwę produktu i otwórz wyniki w wybranej wyszukiwarce.</div>
     </div>
     <div class="tools">
-      <button id="reload" title="Pobierz najnowsze dane">↻ Odśwież</button>
+      <button id="reload" class="news-ui" title="Pobierz najnowsze dane">↻ Odśwież</button>
       <button id="theme" title="Motyw jasny/ciemny">Motyw</button>
     </div>
   </header>
 
-  <div class="controls">
+  <div class="controls news-ui">
     <input type="search" id="q" placeholder="Szukaj w tytułach (np. Windows, Fortinet, ransomware)…" aria-label="Szukaj w tytułach">
     <select id="age" aria-label="Okres">
       <option value="1">Ostatnie 24 h</option>
@@ -104,21 +113,21 @@ footer ul{padding-left:18px;margin:6px 0}
     <label><input type="checkbox" id="onlyNew"> tylko nowe od ostatniej wizyty</label>
   </div>
 
-  <nav class="tabs" role="tablist">
+  <nav class="tabs news-ui" role="tablist">
     <button class="tab on" data-col="cert">Instytucje</button>
     <button class="tab" data-col="news">Serwisy</button>
     <button class="tab" data-col="cve">Wyszukiwarki CVE</button>
   </nav>
 
   <main class="grid">
-    <section class="col cert show" id="col-cert">
+    <section class="col cert show news-ui" id="col-cert">
       <h2>Komunikaty CERT / CSIRT <small id="n-cert"></small></h2>
       <div class="chips" id="chips-cert"></div>
       <ul class="list" id="list-cert"></ul>
       <button class="more" id="more-cert" hidden>Pokaż więcej</button>
     </section>
 
-    <section class="col news" id="col-news">
+    <section class="col news news-ui" id="col-news">
       <h2>Serwisy o bezpieczeństwie <small id="n-news"></small></h2>
       <div class="chips" id="chips-news"></div>
       <ul class="list" id="list-news"></ul>
@@ -136,16 +145,20 @@ footer ul{padding-left:18px;margin:6px 0}
   </main>
 
   <footer>
-    <div><b>Zasady:</b> strona pokazuje wyłącznie <b>tytuł i link</b> z publicznych kanałów RSS (oraz nazwę źródła i datę). Treść artykułów i komunikatów pozostaje u źródła – kliknięcie otwiera oryginał. Wyszukiwarki CVE są tylko linkami.</div>
-    <div>Kanały są pobierane bezpośrednio przez Twoją przeglądarkę. Serwery, które na to nie pozwalają (brak nagłówka CORS), są odpytywane przez publicznego pośrednika (<span id="proxyname">allorigins.win lub własnego, jeśli jest ustawiony</span>) – pośrednik widzi adres pobieranego kanału i Twój adres IP. Wyniki są przechowywane w pamięci przeglądarki przez 20 minut.</div>
-    <ul id="srcs"></ul>
-    <div id="errs" class="err"></div>
+    <div class="news-ui"><b>Zasady:</b> strona pokazuje wyłącznie <b>tytuł i link</b> z publicznych kanałów RSS (oraz nazwę źródła i datę). Treść artykułów i komunikatów pozostaje u źródła – kliknięcie otwiera oryginał. Wyszukiwarki CVE są tylko linkami.</div>
+    <div class="news-ui">Kanały są pobierane bezpośrednio przez Twoją przeglądarkę. Serwery, które na to nie pozwalają (brak nagłówka CORS), są odpytywane przez publicznego pośrednika (<span id="proxyname">allorigins.win lub własnego, jeśli jest ustawiony</span>) – pośrednik widzi adres pobieranego kanału i Twój adres IP. Wyniki są przechowywane w pamięci przeglądarki przez 20 minut.</div>
+    <ul id="srcs" class="news-ui"></ul>
+    <div class="cve-ui" hidden>Strona zawiera wyłącznie linki do zewnętrznych wyszukiwarek podatności – niczego z nich nie pobiera.</div>
+    <div id="errs" class="err news-ui"></div>
   </footer>
 </div>
 
 <script>
 (() => {
   "use strict";
+  // Przegląd newsów (komunikaty CERT i serwisy) – wyłączony do czasu uruchomienia własnego pośrednika
+  // (cors-proxy-worker.js na Cloudflare Workers). Aby włączyć: ustaw OWN_PROXY i zmień na true.
+  const NEWS_ENABLED = false;
   const PAGE = 40, MAX_AGE_DAYS = 14, CACHE_MIN = 20, REFRESH_MIN = 30, TIMEOUT_MS = 15000;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -392,8 +405,17 @@ footer ul{padding-left:18px;margin:6px 0}
   addEventListener("pagehide", () => store.set("sec-last-visit", String(Date.now())));
 
   renderEngines();
-  loadAll(false);
-  setInterval(() => loadAll(false), REFRESH_MIN * 60000);
+  if (NEWS_ENABLED) {
+    loadAll(false);
+    setInterval(() => loadAll(false), REFRESH_MIN * 60000);
+  } else {
+    document.body.classList.add("cve-only");
+    document.title = "Wyszukiwarki podatności (CVE)";
+    document.querySelector("h1").textContent = "Wyszukiwarki podatności (CVE)";
+    $("gen").hidden = true;
+    document.querySelectorAll(".cve-ui").forEach((el) => { el.hidden = false; });
+    $("cveq").focus();
+  }
 })();
 </script>
 </body>

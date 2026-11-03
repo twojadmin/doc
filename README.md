@@ -2,6 +2,10 @@
 Dokumentacja
 
 ## Przegląd bezpieczeństwa – `index.html`
+
+> **Obecnie strona pokazuje tylko wyszukiwarki CVE.** Przegląd newsów (kolumny 1 i 2) jest wyłączony
+> stałą `NEWS_ENABLED = false` w `index.html` do czasu uruchomienia własnego pośrednika (`cors-proxy-worker.js`).
+> Aby go włączyć: uruchom Workera, wpisz jego adres w `OWN_PROXY` i ustaw `NEWS_ENABLED = true`.
 Strona zbiorcza „co się teraz dzieje w bezpieczeństwie”, w trzech kolumnach:
 
 1. **Komunikaty CERT / CSIRT** – CERT Polska, CERT-EU, CERT-FR (biuletyny i alerty), BSI CERT-Bund
