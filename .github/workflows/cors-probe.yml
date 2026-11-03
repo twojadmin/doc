@@ -1,0 +1,37 @@
+name: CORS probe
+on:
+  push:
+    branches: ["claude/news-js"]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          O="Origin: https://twojadmin.github.io"
+          for u in \
+            "https://cert.pl/rss.xml" \
+            "https://cert.europa.eu/publications/security-advisories-rss" \
+            "https://www.cert.ssi.gouv.fr/avis/feed/" \
+            "https://www.cert.ssi.gouv.fr/alerte/feed/" \
+            "https://wid.cert-bund.de/content/public/securityAdvisory/rss" \
+            "https://advisories.ncsc.nl/rss/advisories" \
+            "https://sekurak.pl/feed/" \
+            "https://niebezpiecznik.pl/feed/" \
+            "https://zaufanatrzeciastrona.pl/feed/" \
+            "https://cyberdefence24.pl/rss" \
+            "https://www.bleepingcomputer.com/feed/" \
+            "https://feeds.feedburner.com/TheHackersNews" \
+            "https://www.securityweek.com/feed/" \
+            "https://therecord.media/feed" \
+            "https://www.helpnetsecurity.com/feed/" \
+            "https://krebsonsecurity.com/feed/" \
+            "https://isc.sans.edu/rssfeed_full.xml" \
+            ; do
+            h=$(curl -sS -m 30 -o /dev/null -D - -H "$O" "$u" | tr -d "\r" | grep -iE "^(HTTP|access-control-allow-origin)" | tr "\n" " ")
+            p=$(curl -sS -m 30 -o /tmp/b -w "%{http_code}" -H "$O" -D /tmp/h "https://api.allorigins.win/raw?url=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=\"\"))" "$u")"; grep -ic "access-control-allow-origin" /tmp/h; grep -c "<item\|<entry" /tmp/b)
+            c=$(curl -sS -m 30 -o /tmp/b2 -w "%{http_code}" -H "$O" -D /tmp/h2 "https://corsproxy.io/?url=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=\"\"))" "$u")"; grep -ic "access-control-allow-origin" /tmp/h2; grep -c "<item\|<entry" /tmp/b2)
+            echo "$u | direct: $h | allorigins: $(echo $p) | corsproxy: $(echo $c)"
+          done
+          for u in "https://euvd.enisa.europa.eu/vulnerability/CVE-2024-3400" "https://euvd.enisa.europa.eu/search?text=tomcat"; do curl -sS -m 30 -o /tmp/e -w "$u -> %{http_code} %{url_effective}\n" "$u"; grep -o "<title>[^<]*" /tmp/e; done
