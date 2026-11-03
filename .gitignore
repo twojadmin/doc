@@ -1,4 +1,3 @@
-cve-monitor/data.json
-cve-monitor/news.json
+security-news/news.json
 __pycache__/
 *.pyc

@@ -20,11 +20,11 @@ wykorzystujemy je wyłącznie do podania tytułu i odnośnika.
   Lista źródeł: `SOURCES` na początku pliku.
 - `index.html` wczytuje `news.json`: wyszukiwanie w tytułach, okres (24 h – 14 dni), włączanie/wyłączanie źródeł,
   oznaczanie nowych pozycji od ostatniej wizyty, tryb ciemny, widok na telefon.
-- Workflow `.github/workflows/cve-monitor.yml` odświeża dane co 2 godziny i publikuje stronę na GitHub Pages.
+- Workflow `.github/workflows/security-news.yml` odświeża dane co 2 godziny i publikuje stronę na GitHub Pages.
   Każdy przebieg zapisuje też `news.json` i `przeglad-bezpieczenstwa-offline.html` na gałęzi `cve-data`.
 
 Lokalnie:
 ```bash
-OUTPUT=cve-monitor/news.json python3 cve-monitor/scripts/fetch_news.py
-python3 -m http.server -d cve-monitor 8000   # http://localhost:8000
+OUTPUT=security-news/news.json python3 security-news/scripts/fetch_news.py
+python3 -m http.server -d security-news 8000   # http://localhost:8000
 ```
