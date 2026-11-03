@@ -20,10 +20,10 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
-OUTPUT = os.environ.get("OUTPUT", "cve-monitor/news.json")
+OUTPUT = os.environ.get("OUTPUT", "security-news/news.json")
 MAX_AGE_DAYS = int(os.environ.get("MAX_AGE_DAYS", "14"))
 MAX_PER_SOURCE = int(os.environ.get("MAX_PER_SOURCE", "30"))
-UA = "cve-monitor (+https://github.com/twojadmin/doc)"
+UA = "security-news (+https://github.com/twojadmin/doc)"
 
 # col: "cert" – instytucje (CERT/CSIRT), "news" – serwisy o bezpieczeństwie
 SOURCES = [

@@ -5,10 +5,10 @@ on:
     - cron: "17 */2 * * *"   # co 2 godziny
   workflow_dispatch:
   push:
-    branches: [main, "claude/security-news"]
+    branches: [main]
     paths:
-      - "cve-monitor/**"
-      - ".github/workflows/cve-monitor.yml"
+      - "security-news/**"
+      - ".github/workflows/security-news.yml"
 
 permissions:
   contents: write
@@ -16,7 +16,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: cve-monitor
+  group: security-news
   cancel-in-progress: false
 
 jobs:
@@ -35,8 +35,8 @@ jobs:
           OUTPUT: site/news.json
         run: |
           mkdir -p site
-          cp cve-monitor/index.html site/
-          python3 cve-monitor/scripts/fetch_news.py
+          cp security-news/index.html site/
+          python3 security-news/scripts/fetch_news.py
 
       - name: Podsumowanie
         run: |
@@ -54,7 +54,7 @@ jobs:
       - name: Zapisz dane na gałęzi cve-data
         run: |
           mkdir -p /tmp/cvedata && cp site/news.json /tmp/cvedata/
-          python3 cve-monitor/scripts/build_offline.py cve-monitor/index.html site/news.json /tmp/cvedata/przeglad-bezpieczenstwa-offline.html
+          python3 security-news/scripts/build_offline.py security-news/index.html site/news.json /tmp/cvedata/przeglad-bezpieczenstwa-offline.html
           cd /tmp/cvedata
           git init -q -b cve-data
           git config user.name "github-actions[bot]"
